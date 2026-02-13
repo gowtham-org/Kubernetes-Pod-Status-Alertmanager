@@ -1,0 +1,6 @@
+apiVersion: v2
+name: crashloop-stack
+description: CrashLoopBackOff monitor + dashboard + ngrok exposure
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

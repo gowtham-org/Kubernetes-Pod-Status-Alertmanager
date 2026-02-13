@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "crashloop-stack.fullname" . }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "crashloop-stack.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "crashloop-stack.fullname" . }}
+    spec:
+      serviceAccountName: {{ include "crashloop-stack.fullname" . }}-sa
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: INTERVAL_SECONDS
+              value: {{ .Values.app.intervalSeconds | quote }}
+            - name: ALERT_COOLDOWN_SECONDS
+              value: {{ .Values.app.cooldownSeconds | quote }}
+            - name: NAMESPACES
+              value: {{ .Values.app.namespaces | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.name }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+
+        - name: ngrok
+          image: {{ .Values.ngrok.image }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.name }}
+          args:
+            - "http"
+            - "http://127.0.0.1:8080"
+          ports:
+            - containerPort: 4040
+      volumes:
+        - name: data
+          emptyDir: {}

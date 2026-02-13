@@ -1,0 +1,11 @@
+values-secrets.yaml
+# values-secrets.enc.yaml
+# secrets (never commit)
+values-secrets.yaml
+*.key
+*.pem
+
+# python
+.venv/
+__pycache__/
+*.pyc

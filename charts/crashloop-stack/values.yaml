@@ -1,0 +1,31 @@
+namespace: monitoring
+
+image:
+  repository: gowthamchowdam94/crashloop-dashboard
+  tag: "1.0"
+  pullPolicy: IfNotPresent
+
+app:
+  intervalSeconds: 30
+  cooldownSeconds: 600
+  namespaces: ""   # e.g. "default,kube-system" or "" for all
+
+ngrok:
+  image: ngrok/ngrok:latest
+
+service:
+  port: 80
+
+rbac:
+  create: true
+
+secrets:
+  create: true
+  name: crashloop-secrets
+  # these are filled via values-secrets.enc.yaml (encrypted)
+  gmail:
+    from: ""
+    to: ""
+    appPassword: ""
+  ngrok:
+    authToken: ""
