@@ -7,6 +7,7 @@ import smtplib
 from email.message import EmailMessage
 from datetime import datetime, timezone
 
+import requests
 from flask import Flask, jsonify, render_template_string
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
@@ -76,6 +77,27 @@ def send_gmail(subject: str, body: str) -> bool:
         print(f"[{now_utc_iso()}] Email send failed: {e}")
         return False
 
+def get_ngrok_public_url() -> str:
+    """
+    Option A:
+    ngrok sidecar exposes a local API at 127.0.0.1:4040 (inside the same pod).
+    We read the current public URL and show it in the dashboard.
+    """
+    try:
+        r = requests.get("http://127.0.0.1:4040/api/tunnels", timeout=1.5)
+        data = r.json()
+        tunnels = data.get("tunnels", [])
+        # Prefer https URL if available
+        for t in tunnels:
+            url = (t.get("public_url") or "").strip()
+            if url.startswith("https://"):
+                return url
+        if tunnels:
+            return (tunnels[0].get("public_url") or "").strip()
+        return ""
+    except Exception:
+        return ""
+
 def list_crashloops(v1: client.CoreV1Api):
     items = []
 
@@ -106,13 +128,12 @@ def list_crashloops(v1: client.CoreV1Api):
     return items
 
 def monitor_loop():
-    # In-cluster auth (ServiceAccount token)
     config.load_incluster_config()
     v1 = client.CoreV1Api()
 
     ensure_data_dir()
-    state = load_json(STATE_FILE, {})  # fp -> last_sent_epoch
-    events = load_json(EVENTS_FILE, [])  # list of events
+    state = load_json(STATE_FILE, {})   # fp -> last_sent_epoch
+    events = load_json(EVENTS_FILE, []) # list of events
 
     print(f"[{now_utc_iso()}] Monitor started. interval={INTERVAL_SECONDS}s cooldown={COOLDOWN_SECONDS}s namespaces={NAMESPACES or 'ALL'}")
 
@@ -140,9 +161,8 @@ def monitor_loop():
                         state[key] = now_epoch
                         save_json(STATE_FILE, state)
 
-                    # store event whether or not email succeeded
                     events.append({**e, "email_sent": bool(sent)})
-                    events = events[-200:]  # keep last 200
+                    events = events[-200:]
                     save_json(EVENTS_FILE, events)
 
             time.sleep(INTERVAL_SECONDS)
@@ -167,11 +187,20 @@ TEMPLATE = """
     th, td { border-bottom: 1px solid #eee; padding: 10px; text-align: left; }
     th { background: #fafafa; }
     .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; background:#ffecec; }
+    code { background:#f6f6f6; padding:2px 6px; border-radius:6px; }
   </style>
 </head>
 <body>
   <h2>CrashLoopBackOff Dashboard</h2>
+
   <div class="card">
+    <b>Public URL (ngrok):</b>
+    {% if public_url %}
+      <a href="{{ public_url }}" target="_blank">{{ public_url }}</a>
+    {% else %}
+      <span>Starting… (ngrok not ready yet)</span>
+    {% endif %}
+    <br/><br/>
     <b>Last refresh:</b> {{ refreshed }} <br/>
     <b>Namespaces:</b> {{ namespaces }}
   </div>
@@ -206,11 +235,13 @@ def api_events():
 def home():
     ensure_data_dir()
     events = load_json(EVENTS_FILE, [])
+    public_url = get_ngrok_public_url()
     return render_template_string(
         TEMPLATE,
         events=reversed(events),
         refreshed=now_utc_iso(),
-        namespaces=",".join(NAMESPACES) if NAMESPACES else "ALL"
+        namespaces=",".join(NAMESPACES) if NAMESPACES else "ALL",
+        public_url=public_url
     )
 
 if __name__ == "__main__":

@@ -20,6 +20,25 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8080
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+
           env:
             - name: INTERVAL_SECONDS
               value: {{ .Values.app.intervalSeconds | quote }}
@@ -44,6 +63,7 @@ spec:
             - "http://127.0.0.1:8080"
           ports:
             - containerPort: 4040
+
       volumes:
         - name: data
           emptyDir: {}
