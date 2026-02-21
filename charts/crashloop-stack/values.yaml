@@ -1,5 +1,5 @@
+namespaceCreate: false
 namespace: monitoring
-
 image:
   repository: gowthamchowdam94/crashloop-dashboard
   tag: "1.1"
